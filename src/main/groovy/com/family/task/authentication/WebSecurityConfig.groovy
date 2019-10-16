@@ -31,12 +31,16 @@ class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .authenticationEntryPoint(customAuthenticationEntryPoint)
 
         if (mainConfig.enableSecurity) {
-            http.authorizeRequests()
+            http.authorizeRequests()  //todo need to modify it make more sense
                     .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .antMatchers(HttpMethod.GET, "/task/**").authenticated()
-                    .antMatchers(HttpMethod.POST, "/users/**").hasAuthority("ADMIN")
-                    .antMatchers(HttpMethod.DELETE, "/**").authenticated()
-                    .anyRequest().denyAll();
+                    .antMatchers(HttpMethod.GET, "/checkuserid").permitAll()
+                    .antMatchers(HttpMethod.POST, "/login", "/createfamily").permitAll()
+                    .antMatchers(HttpMethod.GET, "/task/**", "/users", "/family/**").authenticated()
+                    .antMatchers(HttpMethod.PUT, "/task/**", "/users").authenticated()
+                    .antMatchers(HttpMethod.POST, "/users", "/task/tasks").hasAuthority("ADMIN")
+                    .antMatchers(HttpMethod.PUT, "/family/**").hasAuthority("ADMIN")
+                    .antMatchers(HttpMethod.DELETE, "/**").hasAuthority("ADMIN")
+                    .anyRequest().authenticated()
 
         } else {
             http.authorizeRequests()

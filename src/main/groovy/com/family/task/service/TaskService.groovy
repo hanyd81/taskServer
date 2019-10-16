@@ -19,7 +19,7 @@ class TaskService {
     TaskDataJdbc taskDataJdbc
 
 
-    def createTask(String taskJsonStr) {
+    def createTask(String taskJsonStr, String token) {
         def result = [
                 result : Constants.RESULT_FAIL,
                 taskId : null,
@@ -32,22 +32,29 @@ class TaskService {
             result.message = "missing name "
             return result
         }
-        if (theTask.getAt("familyId") == null || theTask.getAt("familyId").toString().length() == 0) {
-            result.message = "missing family id"
-            return result
-        }
 
         // set default values
         String name = theTask.getAt("name").toString()
-        int familyId = theTask.getAt("familyId").intValue()
-        int points = 0
-        int effectDays = 1
+        int points = ServiceHelper.getIntValue(theTask, "points")
+        int familyId = ServiceHelper.getIntValue(theTask, "familyId")
+        int effectDays = ServiceHelper.getIntValue(theTask, "effectDays")
         String category = "OTHER"
         String description = ""
 
         Date date = new Date()
         String createDate = date.format("yyyy-MM-dd")
         String id = name.toUpperCase()[0] + date.format("MMddHHmmssSS") + familyId.toString()[-1]
+
+        // validation
+        if (familyId == 0) {
+            result.message = "missing or invalid family id"
+            return result
+        }
+
+        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
+            result.message = "invalid family id"
+            return result
+        }
 
         //set the values
         theTask.putAt("taskid", id)
@@ -61,15 +68,12 @@ class TaskService {
             theTask.putAt("createDate", createDate)
         }
 
-        if (theTask.getAt("effectDays") != null) {
-            effectDays = theTask.getAt("effectDays").intValue()
+        if (effectDays == 0) {
+            effectDays = 1
         }
+
         String deadline = date.plus(effectDays).format("yyyy-MM-dd")
         theTask.putAt("deadline", deadline)
-
-        if (theTask.getAt("points") != null) {
-            points = theTask.getAt("points").intValue()
-        }
 
         if (theTask.getAt("category") != null) {
             category = theTask.getAt("category")

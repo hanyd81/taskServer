@@ -1,6 +1,7 @@
 package com.family.task.jdbc
 
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
@@ -15,8 +16,8 @@ class TaskDataJdbc {
 
     // table names
     final String TASK_TABLE = "task"
-    final String USER_TABLE = "account_user"
-    final String FAMILY_TABLE = "user_family"
+    final String USER_TABLE = "task_user"
+    final String FAMILY_TABLE = "task_family"
 
     @Transactional
     int insertTaskRecord(String taskId, String name, String description, int points, String category, String status,
@@ -258,9 +259,10 @@ class TaskDataJdbc {
 
     //-------------user table ---------------------------------------/
 
-    def insertUser(String id, String roles, String nickname, int familyId) {
-        String sql = "INSERT INTO " + USER_TABLE + "(id,roles,nickname,familyid) VALUES ( '" +
+    def insertUser(String id, String passwords, String roles, String nickname, int familyId) {
+        String sql = "INSERT INTO " + USER_TABLE + "(id,passwords,roles,nickname,familyid) VALUES ( '" +
                 id + "','" +
+                passwords + "','" +
                 roles + "','" +
                 nickname + "'," +
                 familyId +
@@ -268,7 +270,7 @@ class TaskDataJdbc {
         try {
             def result = jdbcTemplate.update(sql)
             return result
-        } catch (Exception ex) {
+        } catch (DataIntegrityViolationException ex) {
             System.out.println(ex.getMessage())
             return 0
         }
@@ -280,6 +282,21 @@ class TaskDataJdbc {
                 "roles, " +
                 "nickname as \"nickName\"," +
                 "points, " +
+                "familyid as \"familyId\" " +
+                " FROM " + USER_TABLE + " WHERE id='" + id + "'"
+        try {
+            def result = jdbcTemplate.queryForList(sql)
+            return result
+        } catch (Exception ex) {
+            System.out.println(ex.getMessage())
+            return null
+        }
+    }
+
+    def getUserPassWordById(String id) {
+        String sql = "SELECT " +
+                "passwords, " +
+                "roles, " +
                 "familyid as \"familyId\" " +
                 " FROM " + USER_TABLE + " WHERE id='" + id + "'"
         try {
@@ -333,15 +350,18 @@ class TaskDataJdbc {
         }
     }
 
-    def checkUserById(String id) {
+    def checkUserExist(String id) {
         String sql = "SELECT id FROM " + USER_TABLE + " WHERE id='" + id + "'"
+        String result
         try {
-            def result = jdbcTemplate.queryForObject(sql, String.class)
-            return result
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage())
-            return ""
+            result = jdbcTemplate.queryForObject(sql, String.class)
+        } catch (EmptyResultDataAccessException e) {
+            return false
         }
+        if (result.length() == 0) {
+            return false
+        }
+        return true
     }
 
     def deleteUserById(String id) {

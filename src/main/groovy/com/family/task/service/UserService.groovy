@@ -1,9 +1,11 @@
 package com.family.task.service
 
+import com.family.task.authentication.JwtTokenUtil
 import com.family.task.constants.Constants
 import com.family.task.jdbc.TaskDataJdbc
 import groovy.json.JsonSlurper
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Service
 
 @Service
@@ -13,6 +15,11 @@ class UserService {
     TaskDataJdbc taskDataJdbc
     @Autowired
     JsonSlurper jsonSlurper
+    @Autowired
+    JwtTokenUtil jwtTokenUtil
+    @Autowired
+    BCryptPasswordEncoder passwordEncoder
+
 
     def createFamily(String familyJsonStr) {
         def result = [
@@ -20,27 +27,65 @@ class UserService {
                 familyId: 0,
                 message : ""
         ]
-        def family = jsonSlurper.parseText(familyJsonStr)
-        String familyName
-        String categories = Constants.DEFAULT_CATEGORY
 
-        if (family.getAt("familyName") == null || family.getAt("familyName").toString().length() == 0) {
+        def family = jsonSlurper.parseText(familyJsonStr)
+
+        // set initial values
+        String familyName = family.getAt("familyName").toString()
+        String id = family.getAt("id").toString()
+        String rawPassword = family.getAt("passwords").toString()
+        String categories = Constants.DEFAULT_CATEGORY
+        String nickName = Constants.DEFAULT_USER_NICKNAME
+        String roles = Constants.ROLE_LIST[1]
+
+        // check values
+        if (familyName == "" || familyName == "null") {
             result.message = "missing family name "
             return result
         }
-        familyName = family.getAt("familyName").toString()
+
+        if (id == "" || id == "null") {
+            result.message = "missing userId"
+            return result
+        }
+        if (rawPassword == "" || rawPassword == "null") {
+            result.message = "missing password"
+            return result
+        }
 
         if (family.getAt("categories") != null && family.getAt("categories").toString().length() > 0) {
             categories = family.getAt("categories").toString()
         }
 
-        int queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
+        //check if user exists
+        if (taskDataJdbc.checkUserExist(id)) {
+            result.message = "user name already used"
+            return result
+        }
 
+        String passwords = passwordEncoder.encode(rawPassword)
+
+        //create family record
+        int queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
         if (queryResult > 0) {
-            result.result = Constants.RESULT_SUCCESS
             result.familyId = queryResult
         }
 
+        if (result.familyId == 0) {
+            result.message = "fail to create family"
+            return result
+        }
+        // create user
+        int queryResult2 = taskDataJdbc.insertUser(id, passwords, roles, nickName, result.familyId)
+
+        if (queryResult2 > 0) {
+            result.result = Constants.RESULT_SUCCESS
+            result.userId = id
+            String jwt = jwtTokenUtil.generateJWT(id, result.familyId, roles)
+            result.jwt = jwt
+        } else {
+            result.message = "unable to insert user"
+        }
         return result
     }
 
@@ -119,9 +164,10 @@ class UserService {
         return result
     }
 
+
     //---------------------user function-----------------------------------------//
 
-    def createUser(String userJsonStr) {
+    def createUser(String userJsonStr, String token) {
         def result = [
                 result : Constants.RESULT_FAIL,
                 userId : "",
@@ -129,15 +175,33 @@ class UserService {
         ]
 
         def userJson = jsonSlurper.parseText(userJsonStr)
-        if (userJson.getAt("familyId") == null || userJson.getAt("id") == null) {
-            result.message = "missing familyId or userId"
+
+        String id = userJson.getAt("id").toString()
+        String rawPassword = userJson.getAt("passwords").toString()
+        String roles = Constants.ROLE_LIST[0]
+        String nickName = Constants.DEFAULT_USER_NICKNAME
+        int familyId = ServiceHelper.getIntValue(userJson, "familyId")
+
+        if (familyId == 0) {
+            result.message = "invalid familyId"
             return result
         }
 
-        String id = userJson.getAt("id").toString()
-        int familyId = userJson.getAt("familyId").intValue()
-        String roles = Constants.ROLE_LIST[0]
-        String nickName = "user"
+        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
+            result.message = "familyId not match"
+            return result
+        }
+
+        if (id == "" || id == "null") {
+            result.message = "missing userId"
+            return result
+        }
+        if (rawPassword == "" || rawPassword == "null") {
+            result.message = "missing password"
+            return result
+        }
+
+        String passwords = passwordEncoder.encode(rawPassword)
 
         if (userJson.getAt("roles") != null) {
             def rolestr = userJson.getAt("roles").toString().trim()
@@ -147,10 +211,10 @@ class UserService {
         }
 
         if (userJson.getAt("nickName") != null) {
-            nickName = userJson.getAt("nickName")
+            nickName = userJson.getAt("nickName").toString()
         }
 
-        int queryResult = taskDataJdbc.insertUser(id, roles, nickName, familyId)
+        int queryResult = taskDataJdbc.insertUser(id, passwords, roles, nickName, familyId)
 
         if (queryResult > 0) {
             result.result = Constants.RESULT_SUCCESS
@@ -180,17 +244,23 @@ class UserService {
 
     def checkUserIdExist(String id) {
         def result = [
-                result: Constants.RESULT_FAIL,
-                userId: ""
+                result    : Constants.RESULT_FAIL,
+                userExists: true
         ]
-        String queryResult = taskDataJdbc.checkUserById(id)
-        if (queryResult.length() == 0) {
-            result.result = Constants.RESULT_FAIL
+
+        boolean userExists = true
+
+        try {
+            userExists = taskDataJdbc.checkUserExist(id)
+
+        } catch (Exception e) {
+            result.message = e.message
             return result
-        } else {
-            result.result = Constants.RESULT_SUCCESS
-            result.userId = id
         }
+
+        result.result = Constants.RESULT_SUCCESS
+        result.userExists = userExists
+
         return result
     }
 

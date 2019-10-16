@@ -1,7 +1,6 @@
 package com.family.task.config
 
 import groovy.json.JsonBuilder
-import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
@@ -10,6 +9,8 @@ import org.springframework.context.annotation.PropertySource
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.security.crypto.password.PasswordEncoder
 
 @Configuration
 @PropertySource("classpath:application.properties")
@@ -44,5 +45,12 @@ class Beans {
     @Bean
     public JsonBuilder jsonBuilder() {
         return new JsonBuilder()
+    }
+
+    @Bean
+    public BCryptPasswordEncoder bCryptPasswordEncoder() {
+        return new BCryptPasswordEncoder(5) {
+
+        }
     }
 }

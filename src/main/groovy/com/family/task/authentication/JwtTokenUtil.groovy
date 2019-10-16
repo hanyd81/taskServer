@@ -1,6 +1,5 @@
 package com.family.task.authentication
 
-import com.auth0.jwt.JWTCreator
 import com.auth0.jwt.JWTVerifier
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
@@ -12,6 +11,8 @@ import com.family.task.constants.Constants
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 
+import groovy.time.TimeCategory
+
 import java.security.InvalidKeyException
 import java.security.NoSuchAlgorithmException
 import java.security.SignatureException
@@ -19,14 +20,11 @@ import java.security.SignatureException
 @Component
 class JwtTokenUtil {
 
-    private Algorithm algorithmHS = Algorithm.HMAC256("SecretKeyToGenJWTs");
-    private JWTVerifier verifier = JWT.require(algorithmHS).build();
-
-
-    Integer jwtExpiryInMinutes = 60
-
     @Autowired
     MainConfig mainConfig
+
+    private Algorithm algorithmHS = Algorithm.HMAC256("SecretKeyToGenJWTs");
+    private JWTVerifier verifier = JWT.require(algorithmHS).withIssuer(Constants.TOKEN_ISSUER).build();
 
     public parseToken(String tokenStr) throws
             InvalidKeyException, NoSuchAlgorithmException,
@@ -47,7 +45,7 @@ class JwtTokenUtil {
     }
 
     public Map<String, Object> checkToken(String tokenStr) {
-        Map<String, Object> jwtMap
+        Map jwtMap
         try {
             jwtMap = parseToken(tokenStr)
         } catch(TokenExpiredException te){
@@ -69,18 +67,21 @@ class JwtTokenUtil {
     }
 
 
-    String generateJWT(String userID, String familyId, String roles) {
+    String generateJWT(String userID, int familyId, String roles) {
         Date now = new Date()
-        int expireMinute = 60
-        Date expiredate = DateUtils.addMinutes(now, expireMinute);
+        Date expiredate
+        use( TimeCategory ) {
+            expiredate = now + mainConfig.tokenMinute
+        }
         String token = JWT.create()
-                .withIssuer("auth0")
-                .withIssuedAt(new Date())
+                .withIssuer(Constants.TOKEN_ISSUER)
+                .withIssuedAt(now)
                 .withExpiresAt(expiredate)
+                .withSubject(userID)
                 .withClaim("id", userID)
                 .withClaim("familyId", familyId)
                 .withClaim("roles", roles)
-                .sign(algorithm)
+                .sign(algorithmHS)
         return token
 
     }
