@@ -4,6 +4,7 @@ import com.auth0.jwt.JWTDecoder
 import com.auth0.jwt.interfaces.DecodedJWT
 import org.codehaus.groovy.runtime.typehandling.GroovyCastException
 
+
 class ServiceHelper {
 
     static int getIntValue(Map json, String key) {

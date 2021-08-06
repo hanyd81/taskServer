@@ -2,12 +2,16 @@ package com.family.task.service
 
 import com.family.task.authentication.JwtTokenUtil
 import com.family.task.constants.Constants
+import com.family.task.constants.UserRole
 import com.family.task.jdbc.TaskDataJdbc
 import groovy.json.JsonSlurper
+import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Service
 
+
+@Slf4j
 @Service
 class UserService {
 
@@ -32,11 +36,11 @@ class UserService {
 
         // set initial values
         String familyName = family.getAt("familyName").toString()
-        String id = family.getAt("id").toString()
-        String rawPassword = family.getAt("passwords").toString()
+        String id = family.getAt("userId").toString()
+        String rawPassword = family.getAt("password").toString()
         String categories = Constants.DEFAULT_CATEGORY
         String nickName = Constants.DEFAULT_USER_NICKNAME
-        String roles = Constants.ROLE_LIST[1]
+        String roles = UserRole.ADMIN.value
 
         // check values
         if (familyName == "" || familyName == "null") {
@@ -53,8 +57,9 @@ class UserService {
             return result
         }
 
-        if (family.getAt("categories") != null && family.getAt("categories").toString().length() > 0) {
-            categories = family.getAt("categories").toString()
+        String[] categoryList = family.getAt("categoryList")
+        if (categoryList != null && categoryList.size() > 0) {
+            categories = categoryList.collect({ it.capitalize() }).join(",")
         }
 
         //check if user exists
@@ -69,6 +74,7 @@ class UserService {
         int queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
         if (queryResult > 0) {
             result.familyId = queryResult
+            log.info("create new family ${familyName}")
         }
 
         if (result.familyId == 0) {
@@ -83,7 +89,9 @@ class UserService {
             result.userId = id
             String jwt = jwtTokenUtil.generateJWT(id, result.familyId, roles)
             result.jwt = jwt
+            log.info("create admin user ${id}")
         } else {
+            log.info("unable to insert user")
             result.message = "unable to insert user"
         }
         return result
@@ -134,9 +142,11 @@ class UserService {
 
         def payloadJson = jsonSlurper.parseText(payload)
         String[] categoryList = payloadJson.getAt("categoryList")
-
-        categoryList = categoryList.collect({ it.capitalize() })
-        String categoryStr = categoryList.join(",")
+        if (categoryList == null || categoryList.size() == 0) {
+            result.message = "missing categoryList "
+            return result
+        }
+        String categoryStr = categoryList.collect({ it.capitalize() }).join(",")
 
         int queryResult = taskDataJdbc.updateCategoriesByFamilyId(familyId, categoryStr)
 
@@ -176,9 +186,9 @@ class UserService {
 
         def userJson = jsonSlurper.parseText(userJsonStr)
 
-        String id = userJson.getAt("id").toString()
-        String rawPassword = userJson.getAt("passwords").toString()
-        String roles = Constants.ROLE_LIST[0]
+        String id = userJson.getAt("userId").toString()
+        String rawPassword = userJson.getAt("password").toString()
+        String roles = UserRole.USER.value
         String nickName = Constants.DEFAULT_USER_NICKNAME
         int familyId = ServiceHelper.getIntValue(userJson, "familyId")
 
@@ -203,9 +213,10 @@ class UserService {
 
         String passwords = passwordEncoder.encode(rawPassword)
 
-        if (userJson.getAt("roles") != null) {
+        if (userJson.getAt("role") != null) {
             def rolestr = userJson.getAt("roles").toString().trim()
-            if (rolestr.toUpperCase() in Constants.ROLE_LIST) {
+            def roleList = UserRole.values().collect() { it.value }
+            if (rolestr.toUpperCase() in roleList) {
                 roles = rolestr.toUpperCase()
             }
         }
@@ -242,7 +253,7 @@ class UserService {
     }
 
 
-    def checkUserIdExist(String id) {
+    def checkUserNameExist(String id) {
         def result = [
                 result    : Constants.RESULT_FAIL,
                 userExists: true
@@ -276,6 +287,7 @@ class UserService {
         }
         result.result = Constants.RESULT_SUCCESS
         result.message = "nickName change to " + nickName
+        return result
     }
 
     def deleteUser(String id) {
@@ -289,6 +301,7 @@ class UserService {
             return result
         }
         result.result = Constants.RESULT_SUCCESS
+        log.info("user ${id} deleted")
         return result
     }
 }

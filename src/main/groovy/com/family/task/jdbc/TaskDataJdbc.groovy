@@ -1,13 +1,15 @@
 package com.family.task.jdbc
 
+import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
+import java.sql.SQLException
 
-
+@Slf4j
 @Repository
 class TaskDataJdbc {
 
@@ -51,7 +53,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -62,10 +64,10 @@ class TaskDataJdbc {
             row = jdbcTemplate.queryForObject("SELECT task_json FROM " + TASK_TABLE + " where taskid='" + taskId + "'", String.class)
         } catch (EmptyResultDataAccessException ignored) {
             def txt = taskId + ": task Not Found"
-            System.out.println(txt)
+            log.debug(txt)
             return null
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
 
@@ -80,10 +82,10 @@ class TaskDataJdbc {
             tasklist = jdbcTemplate.queryForList(sql, String.class)
         } catch (EmptyResultDataAccessException ignored) {
             def txt = "Task Not Found for family" + familyId
-            System.out.println(txt)
+            log.debug(txt)
             return null
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
 
@@ -98,10 +100,10 @@ class TaskDataJdbc {
             taskList = jdbcTemplate.queryForList(sql, String.class)
         } catch (EmptyResultDataAccessException ignored) {
             def txt = "Task Not Found for assignee" + assignee
-            System.out.println(txt)
+            log.debug(txt)
             return null
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
 
@@ -117,10 +119,10 @@ class TaskDataJdbc {
             taskList = jdbcTemplate.queryForList(sql, String.class)
         } catch (EmptyResultDataAccessException ignored) {
             def txt = "Task Not Found "
-            System.out.println(txt)
+            log.debug(txt)
             return null
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
 
@@ -133,10 +135,10 @@ class TaskDataJdbc {
             def result = jdbcTemplate.queryForList(sql)
             return result
         } catch (EmptyResultDataAccessException ignored) {
-            System.out.println("task " + taskId + " not found")
+            log.debug("task " + taskId + " not found")
             return null
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
     }
@@ -149,7 +151,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -162,7 +164,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -175,7 +177,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -192,7 +194,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -203,7 +205,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -219,7 +221,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.queryForObject(sql, Integer.class)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -230,7 +232,7 @@ class TaskDataJdbc {
             String result = jdbcTemplate.queryForObject(sql, String.class)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return ""
         }
     }
@@ -241,7 +243,7 @@ class TaskDataJdbc {
             int result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -252,7 +254,7 @@ class TaskDataJdbc {
             int result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -271,7 +273,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (DataIntegrityViolationException ex) {
-            System.out.println(ex.getMessage())
+            log.error(ex.getMessage())
             return 0
         }
     }
@@ -288,7 +290,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.queryForList(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
     }
@@ -303,7 +305,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.queryForList(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
     }
@@ -320,7 +322,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.queryForList(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return null
         }
     }
@@ -334,7 +336,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -345,7 +347,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }
@@ -356,6 +358,7 @@ class TaskDataJdbc {
         try {
             result = jdbcTemplate.queryForObject(sql, String.class)
         } catch (EmptyResultDataAccessException e) {
+            log.debug(e.getMessage())
             return false
         }
         if (result.length() == 0) {
@@ -370,7 +373,7 @@ class TaskDataJdbc {
             int result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            System.out.println(ex.getMessage())
+            log.debug(ex.getMessage())
             return 0
         }
     }

@@ -8,12 +8,14 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping(value = "task")
-class TaskDataResource {
+class TaskController {
 
     @Autowired
     TaskService taskService
 
-    @RequestMapping(value = "tasks", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @RequestMapping(value = "tasks",
+            method = RequestMethod.POST,
+            consumes = MediaType.APPLICATION_JSON_VALUE)
     def createTask(@RequestBody String newTask,
                    @RequestHeader("Authorization") String token) {
         def taskId = taskService.createTask(newTask,token)

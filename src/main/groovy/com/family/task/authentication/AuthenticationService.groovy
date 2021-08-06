@@ -37,7 +37,7 @@ class AuthenticationService {
 
         def userInfo = taskDataJdbc.getUserPassWordById(userId)
         if (userInfo == null || userInfo.size() == 0) {
-            result.message = "invalid user nam"
+            result.message = "invalid user name"
             return result
         }
         String password2 = userInfo[0].getAt("passwords").toString()
