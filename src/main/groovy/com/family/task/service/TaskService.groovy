@@ -1,12 +1,15 @@
 package com.family.task.service
 
 import com.family.task.constants.Constants
+import com.family.task.constants.TaskStatus
+import com.family.task.exception.TaskServerException
 import com.family.task.jdbc.TaskDataJdbc
 import groovy.json.JsonBuilder
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 
 @Slf4j
@@ -30,16 +33,16 @@ class TaskService {
 
         def theTask = jsonSlurper.parseText(taskJsonStr)
 
-        if (theTask.getAt("name") == null || theTask.getAt("name").toString().length() == 0) {
+        if (theTask["name"] == null || theTask["name"].length() == 0) {
             result.message = "missing name "
             return result
         }
 
         // set default values
-        String name = theTask.getAt("name").toString()
-        int points = ServiceHelper.getIntValue(theTask, "points")
-        int familyId = ServiceHelper.getIntValue(theTask, "familyId")
-        int effectDays = ServiceHelper.getIntValue(theTask, "effectDays")
+        String name = theTask["name"]
+        int points = theTask["points"]
+        int familyId = theTask["familyId"]
+        int effectDays = theTask["effectDays"]
         String category = "OTHER"
         String description = ""
 
@@ -59,15 +62,15 @@ class TaskService {
         }
 
         //set the values
-        theTask.putAt("taskid", id)
-        theTask.putAt("status", Constants.STATUS_LIST[0])
+        theTask["taskid"] = id
+        theTask["status"] = TaskStatus.OPEN.value
 
-        if (theTask.getAt("createDate") != null) {
-            createDate = theTask.getAt("createDate")
+        if (theTask["createDate"] != null) {
+            createDate = theTask["createDate"]
             date = Date.parse("yyyy-MM-dd", createDate)
 
         } else {
-            theTask.putAt("createDate", createDate)
+            theTask["createDate"] = createDate
         }
 
         if (effectDays == 0) {
@@ -75,18 +78,18 @@ class TaskService {
         }
 
         String deadline = date.plus(effectDays).format("yyyy-MM-dd")
-        theTask.putAt("deadline", deadline)
+        theTask["deadline"]=deadline
 
         if (theTask.getAt("category") != null) {
-            category = theTask.getAt("category")
+            category = theTask["category"]
         }
 
-        if (theTask.getAt("description") != null) {
-            description = theTask.getAt("description")
+        if (theTask["description"] != null) {
+            description = theTask["description"]
         }
 
         String taskJson = JsonOutput.toJson(theTask)
-        int queryResult = taskDataJdbc.insertTaskRecord(id, name, description, points, category, Constants.STATUS_LIST[0],
+        int queryResult = taskDataJdbc.insertTaskRecord(id, name, description, points, category, theTask["status"],
                 taskJson, familyId, createDate, deadline, theTask.getAt("assignee").toString())
 
         if (queryResult > 0) {
@@ -104,9 +107,10 @@ class TaskService {
         ]
 
         result.task = taskDataJdbc.getTaskByTaskId(taskId)
-        if (result.task != null) {
-            result.result = Constants.RESULT_SUCCESS
+        if (result.task == null) {
+            throw new TaskServerException("Task not found", HttpStatus.NOT_FOUND)
         }
+        result.result = Constants.RESULT_SUCCESS
         return result
     }
 
@@ -118,10 +122,6 @@ class TaskService {
                 taskList  : []
         ]
         def taskList = taskDataJdbc.getTaskByFamilyId(familyId, orderBy)
-
-        if (taskList == null) {
-            return result
-        }
 
         result.totalcount = taskList.size()
         for (task in taskList) {
@@ -175,27 +175,15 @@ class TaskService {
                 result : Constants.RESULT_FAIL,
                 message: ""
         ]
-        String standardStatus = null
-        for (stat in Constants.STATUS_LIST) {
-            if (status.toUpperCase() == stat) {
-                standardStatus = stat
-                break
-            }
-        }
-        if (standardStatus == null) {
-            result.message = "unknown status"
-            return result
-        }
 
-        int queryResult = taskDataJdbc.updateStatusByTaskId(taskId, standardStatus)
+        int queryResult = taskDataJdbc.updateStatusByTaskId(taskId, status)
 
         if (queryResult < 1) {
-            result.result = Constants.RESULT_FAIL
-            result.message = "fail to update task"
-            return result
+            throw new TaskServerException("Task not found", HttpStatus.BAD_REQUEST)
         }
         result.result = Constants.RESULT_SUCCESS
         result.message = "task status updated to " + status
+        return result
     }
 
     def changeTaskAssignee(String taskId, String assignee) {
@@ -205,11 +193,11 @@ class TaskService {
         ]
         int queryResult = taskDataJdbc.updateAssigneeByTaskId(taskId, assignee)
         if (queryResult < 1) {
-            result.message = "fail to update task"
-            return result
+            throw new TaskServerException("Task not found", HttpStatus.BAD_REQUEST)
         }
         result.result = Constants.RESULT_SUCCESS
         result.message = "task assignee updated to " + assignee
+        return result
     }
 
     def redeemTaskPoints(String taskId) {
@@ -220,8 +208,7 @@ class TaskService {
         def payload = taskDataJdbc.getPointsAssgneeByTaskId(taskId)
 
         if (payload.size() == 0) {
-            result.message = "task " + taskId + " not found"
-            return result
+            throw new TaskServerException("Task not found", HttpStatus.BAD_REQUEST)
         }
 
         String userId = payload[0].getAt("assignee").toString()
@@ -233,7 +220,7 @@ class TaskService {
             return result
         }
 
-        queryResult = taskDataJdbc.updatePointsStatusByTaskId(taskId, "0", Constants.STATUS_LIST[-1])
+        queryResult = taskDataJdbc.updatePointsStatusByTaskId(taskId, "0", TaskStatus.REDEEMED.value)
         if (queryResult < 1) {
             result.message = "fail to update task"
             taskDataJdbc.addOrSubtractPointsByUserId(userId, points, false)
@@ -252,10 +239,10 @@ class TaskService {
         ]
         int queryResult = taskDataJdbc.deleteTaskByTaskId(taskId)
         if (queryResult < 1) {
-            result.message = "fail to delete task"
-            return result
+            throw new TaskServerException("Task not found", HttpStatus.NOT_FOUND)
         }
         result.result = Constants.RESULT_SUCCESS
         result.message = "task " + taskId + " deleted "
+        return result
     }
 }

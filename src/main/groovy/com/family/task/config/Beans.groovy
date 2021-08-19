@@ -1,5 +1,6 @@
 package com.family.task.config
 
+import com.family.task.constants.TaskStatus
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import org.springframework.beans.factory.annotation.Autowired

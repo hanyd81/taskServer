@@ -1,13 +1,12 @@
 package com.family.task.jdbc
 
+import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.sql.SQLException
 
 @Slf4j
 @Repository
@@ -15,6 +14,9 @@ class TaskDataJdbc {
 
     @Autowired
     JdbcTemplate jdbcTemplate
+
+    @Autowired
+    JsonSlurper jsonSlurper
 
     // table names
     final String TASK_TABLE = "task"
@@ -59,19 +61,20 @@ class TaskDataJdbc {
     }
 
     def getTaskByTaskId(String taskId) {
-        def row
+        def task
         try {
-            row = jdbcTemplate.queryForObject("SELECT task_json FROM " + TASK_TABLE + " where taskid='" + taskId + "'", String.class)
+            def row = jdbcTemplate.queryForObject(
+                    "SELECT task_json FROM " + TASK_TABLE + " where taskid='" + taskId + "'", String.class)
+            task = jsonSlurper.parseText(row)
         } catch (EmptyResultDataAccessException ignored) {
-            def txt = taskId + ": task Not Found"
-            log.debug(txt)
+            log.debug("${taskId} : task Not Found")
             return null
         } catch (Exception ex) {
             log.debug(ex.getMessage())
             return null
         }
 
-        return row
+        return task
     }
 
     // get task list by familyId
@@ -80,9 +83,9 @@ class TaskDataJdbc {
         def tasklist
         try {
             tasklist = jdbcTemplate.queryForList(sql, String.class)
+
         } catch (EmptyResultDataAccessException ignored) {
-            def txt = "Task Not Found for family" + familyId
-            log.debug(txt)
+            log.debug("Task Not Found for family ${familyId}")
             return null
         } catch (Exception ex) {
             log.debug(ex.getMessage())
@@ -164,7 +167,7 @@ class TaskDataJdbc {
             def result = jdbcTemplate.update(sql)
             return result
         } catch (Exception ex) {
-            log.debug(ex.getMessage())
+            log.info(ex.getMessage())
             return 0
         }
     }
@@ -217,82 +220,53 @@ class TaskDataJdbc {
         String sql = "INSERT INTO " + FAMILY_TABLE + "(familyname, categories) VALUES ( '" +
                 familyName + "','" + category + "') RETURNING familyId"
 
-        try {
-            def result = jdbcTemplate.queryForObject(sql, Integer.class)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+        return jdbcTemplate.queryForObject(sql, Integer.class)
     }
 
-    def getCategoryByFamilyID(String familyId) {
+    String getCategoryByFamilyID(String familyId) {
         String sql = "SELECT categories FROM " + FAMILY_TABLE + " WHERE familyid='" + familyId + "'"
-        try {
-            String result = jdbcTemplate.queryForObject(sql, String.class)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return ""
-        }
+
+        return jdbcTemplate.queryForObject(sql, String.class)
     }
 
     def updateCategoriesByFamilyId(String familyId, String category) {
         String sql = "UPDATE " + FAMILY_TABLE + " SET categories='" + category + "' WHERE familyid='" + familyId + "'"
-        try {
-            int result = jdbcTemplate.update(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+
+        return jdbcTemplate.update(sql)
     }
 
     def deleteFamilyByFamilyId(String familyId) {
         String sql = "DELETE FROM " + FAMILY_TABLE + " WHERE familyid='" + familyId + "'"
-        try {
-            int result = jdbcTemplate.update(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+
+        return jdbcTemplate.update(sql)
     }
 
     //-------------user table ---------------------------------------/
 
-    def insertUser(String id, String passwords, String roles, String nickname, int familyId) {
-        String sql = "INSERT INTO " + USER_TABLE + "(id,passwords,roles,nickname,familyid) VALUES ( '" +
-                id + "','" +
+    def insertUser(String userName, String passwords, String roles, String nickname, int familyId) {
+        String sql = "INSERT INTO " + USER_TABLE + "(username,passwords,roles,nickname,familyid) VALUES ( '" +
+                userName + "','" +
                 passwords + "','" +
                 roles + "','" +
                 nickname + "'," +
                 familyId +
-                ") "
-        try {
-            def result = jdbcTemplate.update(sql)
-            return result
-        } catch (DataIntegrityViolationException ex) {
-            log.error(ex.getMessage())
-            return 0
-        }
+                ")  RETURNING id"
+
+        int result = jdbcTemplate.queryForObject(sql, Integer.class)
+        return result
     }
 
     def getUserById(String id) {
         String sql = "SELECT " +
                 "id, " +
+                "username as \"userName\"," +
                 "roles, " +
                 "nickname as \"nickName\"," +
                 "points, " +
                 "familyid as \"familyId\" " +
                 " FROM " + USER_TABLE + " WHERE id='" + id + "'"
-        try {
-            def result = jdbcTemplate.queryForList(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return null
-        }
+
+        return jdbcTemplate.queryForMap(sql)
     }
 
     def getUserPassWordById(String id) {
@@ -301,30 +275,21 @@ class TaskDataJdbc {
                 "roles, " +
                 "familyid as \"familyId\" " +
                 " FROM " + USER_TABLE + " WHERE id='" + id + "'"
-        try {
-            def result = jdbcTemplate.queryForList(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return null
-        }
+
+        return jdbcTemplate.queryForList(sql)
     }
 
     def getUserByFamilyId(String familyId) {
         String sql = "SELECT " +
                 "id, " +
+                "username as \"userName\"," +
                 "roles, " +
                 "nickname as \"nickName\"," +
                 "points, " +
                 "familyid as \"familyId\" " +
                 " FROM " + USER_TABLE + " WHERE familyid=" + familyId
-        try {
-            def result = jdbcTemplate.queryForList(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return null
-        }
+
+        return jdbcTemplate.queryForList(sql)
     }
 
     def addOrSubtractPointsByUserId(String id, String points, Boolean isAdd = true) {
@@ -332,24 +297,13 @@ class TaskDataJdbc {
         String sql = "UPDATE " + USER_TABLE + " SET points=points" + op +
                 points + " WHERE id='" + id + "'"
 
-        try {
-            def result = jdbcTemplate.update(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+        return jdbcTemplate.update(sql)
     }
 
     def updateNicknameByUserId(String userId, String nickName) {
         String sql = "UPDATE " + USER_TABLE + " SET nickname='" + nickName + "'" + " WHERE id='" + userId + "'"
-        try {
-            def result = jdbcTemplate.update(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+
+        return jdbcTemplate.update(sql)
     }
 
     def checkUserExist(String id) {
@@ -367,15 +321,25 @@ class TaskDataJdbc {
         return true
     }
 
+    def checkUserExistByUserName(String userName) {
+        String sql = "SELECT id FROM " + USER_TABLE + " WHERE userName='" + userName + "'"
+        String result
+        try {
+            result = jdbcTemplate.queryForObject(sql, String.class)
+        } catch (EmptyResultDataAccessException e) {
+            log.debug(e.getMessage())
+            return false
+        }
+        if (result.length() == 0) {
+            return false
+        }
+        return true
+    }
+
     def deleteUserById(String id) {
         String sql = "DELETE FROM " + USER_TABLE + " WHERE id='" + id + "'"
-        try {
-            int result = jdbcTemplate.update(sql)
-            return result
-        } catch (Exception ex) {
-            log.debug(ex.getMessage())
-            return 0
-        }
+
+        return jdbcTemplate.update(sql)
     }
 
 }

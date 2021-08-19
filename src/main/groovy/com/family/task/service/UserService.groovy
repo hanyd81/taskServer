@@ -3,12 +3,18 @@ package com.family.task.service
 import com.family.task.authentication.JwtTokenUtil
 import com.family.task.constants.Constants
 import com.family.task.constants.UserRole
+import com.family.task.exception.TaskServerException
 import com.family.task.jdbc.TaskDataJdbc
 import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.dao.DuplicateKeyException
+import org.springframework.dao.EmptyResultDataAccessException
+import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Service
+
+import java.sql.SQLException
 
 
 @Slf4j
@@ -25,7 +31,7 @@ class UserService {
     BCryptPasswordEncoder passwordEncoder
 
 
-    def createFamily(String familyJsonStr) {
+    def createFamily(String familyJsonStr) throws TaskServerException {
         def result = [
                 result  : Constants.RESULT_FAIL,
                 familyId: 0,
@@ -36,7 +42,7 @@ class UserService {
 
         // set initial values
         String familyName = family.getAt("familyName").toString()
-        String id = family.getAt("userId").toString()
+        String userName = family.getAt("userName").toString()
         String rawPassword = family.getAt("password").toString()
         String categories = Constants.DEFAULT_CATEGORY
         String nickName = Constants.DEFAULT_USER_NICKNAME
@@ -48,8 +54,8 @@ class UserService {
             return result
         }
 
-        if (id == "" || id == "null") {
-            result.message = "missing userId"
+        if (userName == "" || userName == "null") {
+            result.message = "missing userName"
             return result
         }
         if (rawPassword == "" || rawPassword == "null") {
@@ -63,37 +69,40 @@ class UserService {
         }
 
         //check if user exists
-        if (taskDataJdbc.checkUserExist(id)) {
-            result.message = "user name already used"
-            return result
+        if (taskDataJdbc.checkUserExistByUserName(userName)) {
+            throw new TaskServerException("User Name exists", HttpStatus.BAD_REQUEST)
         }
 
         String passwords = passwordEncoder.encode(rawPassword)
 
         //create family record
-        int queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
+        int queryResult
+        try {
+            queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
+        } catch (Exception ex) {
+            throw new TaskServerException(ex.getMessage(), HttpStatus.BAD_REQUEST)
+        }
         if (queryResult > 0) {
             result.familyId = queryResult
-            log.info("create new family ${familyName}")
-        }
-
-        if (result.familyId == 0) {
-            result.message = "fail to create family"
-            return result
-        }
-        // create user
-        int queryResult2 = taskDataJdbc.insertUser(id, passwords, roles, nickName, result.familyId)
-
-        if (queryResult2 > 0) {
-            result.result = Constants.RESULT_SUCCESS
-            result.userId = id
-            String jwt = jwtTokenUtil.generateJWT(id, result.familyId, roles)
-            result.jwt = jwt
-            log.info("create admin user ${id}")
+            log.info("create new family ${familyName} with id ${queryResult}")
         } else {
-            log.info("unable to insert user")
-            result.message = "unable to insert user"
+            throw new TaskServerException("fail to create family", HttpStatus.INTERNAL_SERVER_ERROR)
         }
+
+        // create user
+        try {
+            int userId=taskDataJdbc.insertUser(userName, passwords, roles, nickName, result.familyId)
+            result.userId = userId
+        } catch (Exception ex) {
+            throw new TaskServerException(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+
+        result.result = Constants.RESULT_SUCCESS
+        result.userName = userName
+        String jwt = jwtTokenUtil.generateJWT(userName, result.familyId, roles)
+        result.jwt = jwt
+        log.info("create admin user ${userName}")
+
         return result
     }
 
@@ -103,28 +112,33 @@ class UserService {
                 categoryList: [],
                 message     : ""
         ]
-        String categoryStr = taskDataJdbc.getCategoryByFamilyID(familyId)
-
-        if (categoryStr == null || categoryStr == "") {
-            result.message = "fail to retrive categoryList"
-            return result
+        String categoryStr
+        try {
+            categoryStr = taskDataJdbc.getCategoryByFamilyID(familyId)
+        } catch (Exception ex) {
+            log.info(ex.getMessage())
+            throw new TaskServerException("Fail to find family with id ${familyId}", HttpStatus.NOT_FOUND)
         }
 
-        def categoryList = categoryStr.split(",")
-        result.categoryList = categoryList
+        result.categoryList = categoryStr.split(",")
         result.result = Constants.RESULT_SUCCESS
-
         return result
     }
 
+    //todo should allow family without user?
     def getUsersByFamilyId(String familyId) {
         def result = [
                 result    : Constants.RESULT_FAIL,
                 totalcount: 0,
                 userList  : []
         ]
-        def userList = taskDataJdbc.getUserByFamilyId(familyId)
-
+        def userList
+        try {
+            userList = taskDataJdbc.getUserByFamilyId(familyId)
+        } catch (Exception ex) {
+            log.info(ex.getMessage())
+            throw new TaskServerException("Fail to find family with id ${familyId}", HttpStatus.NOT_FOUND)
+        }
         if (userList == null) {
             return result
         }
@@ -143,17 +157,18 @@ class UserService {
         def payloadJson = jsonSlurper.parseText(payload)
         String[] categoryList = payloadJson.getAt("categoryList")
         if (categoryList == null || categoryList.size() == 0) {
-            result.message = "missing categoryList "
-            return result
+            throw new TaskServerException("Missing categoryList", HttpStatus.BAD_REQUEST)
         }
         String categoryStr = categoryList.collect({ it.capitalize() }).join(",")
-
-        int queryResult = taskDataJdbc.updateCategoriesByFamilyId(familyId, categoryStr)
-
+        int queryResult
+        try {
+            queryResult = taskDataJdbc.updateCategoriesByFamilyId(familyId, categoryStr)
+        } catch (Exception ex) {
+            log.info(ex.getMessage())
+            throw new TaskServerException("Fail to update family category with id ${familyId}", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
         if (queryResult < 1) {
-            result.result = Constants.RESULT_FAIL
-            result.message = "fail to update family category"
-            return result
+            throw new TaskServerException("Family not found", HttpStatus.NOT_FOUND)
         }
         result.result = Constants.RESULT_SUCCESS
         return result
@@ -165,10 +180,15 @@ class UserService {
                 result : Constants.RESULT_FAIL,
                 message: ""
         ]
-        int queryResult = taskDataJdbc.deleteFamilyByFamilyId(familyId)
+        int queryResult
+        try {
+            queryResult = taskDataJdbc.deleteFamilyByFamilyId(familyId)
+        } catch (Exception ex) {
+            log.debug(ex.getMessage())
+            throw new TaskServerException("failed to delete family", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
         if (queryResult == 0) {
-            result.message = "failed to delete family"
-            return result
+            throw new TaskServerException("Family not found", HttpStatus.NOT_FOUND)
         }
         result.result = Constants.RESULT_SUCCESS
         return result
@@ -186,29 +206,25 @@ class UserService {
 
         def userJson = jsonSlurper.parseText(userJsonStr)
 
-        String id = userJson.getAt("userId").toString()
-        String rawPassword = userJson.getAt("password").toString()
+        String userName = userJson['userName'].toString()
+        String rawPassword = userJson['password']
         String roles = UserRole.USER.value
         String nickName = Constants.DEFAULT_USER_NICKNAME
-        int familyId = ServiceHelper.getIntValue(userJson, "familyId")
+        int familyId=userJson['familyId']
 
         if (familyId == 0) {
-            result.message = "invalid familyId"
-            return result
+            throw new TaskServerException("Invalid Family Id", HttpStatus.BAD_REQUEST)
         }
 
         if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
-            result.message = "familyId not match"
-            return result
+            throw new TaskServerException("FamilyId not match", HttpStatus.BAD_REQUEST)
         }
 
-        if (id == "" || id == "null") {
-            result.message = "missing userId"
-            return result
+        if (userName == "" || userName == "null") {
+            throw new TaskServerException("Missing userName", HttpStatus.BAD_REQUEST)
         }
         if (rawPassword == "" || rawPassword == "null") {
-            result.message = "missing password"
-            return result
+            throw new TaskServerException("Password not match", HttpStatus.BAD_REQUEST)
         }
 
         String passwords = passwordEncoder.encode(rawPassword)
@@ -225,14 +241,20 @@ class UserService {
             nickName = userJson.getAt("nickName").toString()
         }
 
-        int queryResult = taskDataJdbc.insertUser(id, passwords, roles, nickName, familyId)
-
-        if (queryResult > 0) {
-            result.result = Constants.RESULT_SUCCESS
-            result.userId = id
-        } else {
-            result.message = "unable to insert user"
+        try {
+            taskDataJdbc.insertUser(userName, passwords, roles, nickName, familyId)
+        } catch (DuplicateKeyException e){
+            log.info(e.getMessage())
+            throw new TaskServerException("User name exists", HttpStatus.BAD_REQUEST)
         }
+        catch (Exception ex) {
+            log.info(ex.getMessage())
+            throw new TaskServerException("Failed to create user", HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+
+        result.result = Constants.RESULT_SUCCESS
+        result.userId = userName
+
         return result
     }
 
@@ -240,13 +262,14 @@ class UserService {
         def result = [
                 result: Constants.RESULT_FAIL
         ]
-        def userlist = taskDataJdbc.getUserById(id)
-
-        if (userlist == null) {
-            return result
+        try {
+            result.user = taskDataJdbc.getUserById(id)
+        }catch(EmptyResultDataAccessException ex){
+            throw new TaskServerException("User not found", HttpStatus.NOT_FOUND)
+        }catch(Exception e){
+            throw new TaskServerException("Failed to retrieve user", HttpStatus.INTERNAL_SERVER_ERROR)
         }
 
-        result.user = userlist[0]
         result.result = Constants.RESULT_SUCCESS
 
         return result
