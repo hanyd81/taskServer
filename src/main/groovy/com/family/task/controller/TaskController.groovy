@@ -23,7 +23,7 @@ class TaskController {
     @RequestMapping(value = "task/create",
             method = RequestMethod.POST,
             consumes = MediaType.APPLICATION_JSON_VALUE)
-    def createTask(@RequestBody String newTask,
+    def createTask(@RequestBody Map newTask,
                    @RequestHeader("Authorization") String token) {
         def taskId = taskService.createTask(newTask, token)
         return taskId

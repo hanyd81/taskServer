@@ -14,7 +14,7 @@ class UserController {
     @RequestMapping(value = "user/create",
             method = RequestMethod.POST,
             consumes = MediaType.APPLICATION_JSON_VALUE)
-    def createNewUser(@RequestBody String userJson,
+    def createNewUser(@RequestBody Map userJson,
                      @RequestHeader("Authorization") String token) throws TaskServerException, Exception{
         def result = userService.createUser(userJson, token)
         return result

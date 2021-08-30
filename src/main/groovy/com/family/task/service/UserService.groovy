@@ -5,7 +5,6 @@ import com.family.task.constants.Constants
 import com.family.task.constants.UserRole
 import com.family.task.exception.TaskServerException
 import com.family.task.jdbc.TaskDataJdbc
-import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DuplicateKeyException
@@ -24,46 +23,39 @@ class UserService {
     @Autowired
     TaskDataJdbc taskDataJdbc
     @Autowired
-    JsonSlurper jsonSlurper
-    @Autowired
     JwtTokenUtil jwtTokenUtil
     @Autowired
     BCryptPasswordEncoder passwordEncoder
 
 
-    def createFamily(String familyJsonStr) throws TaskServerException {
+    def createFamily(Map family) throws TaskServerException {
         def result = [
                 result  : Constants.RESULT_FAIL,
                 familyId: 0,
                 message : ""
         ]
 
-        def family = jsonSlurper.parseText(familyJsonStr)
-
         // set initial values
-        String familyName = family.getAt("familyName").toString()
-        String userName = family.getAt("userName").toString()
-        String rawPassword = family.getAt("password").toString()
+        String familyName = family["familyName"]
+        String userName = family["userName"]
+        String rawPassword = family["password"]
         String categories = Constants.DEFAULT_CATEGORY
         String nickName = Constants.DEFAULT_USER_NICKNAME
         String roles = UserRole.ADMIN.value
 
         // check values
-        if (familyName == "" || familyName == "null") {
-            result.message = "missing family name "
-            return result
+        if (familyName == null || familyName == "") {
+            throw new TaskServerException("Missing familyName", HttpStatus.BAD_REQUEST)
         }
 
-        if (userName == "" || userName == "null") {
-            result.message = "missing userName"
-            return result
+        if (userName == null || userName == "null") {
+            throw new TaskServerException("Missing userName", HttpStatus.BAD_REQUEST)
         }
-        if (rawPassword == "" || rawPassword == "null") {
-            result.message = "missing password"
-            return result
+        if (rawPassword == null || rawPassword == "null") {
+            throw new TaskServerException("Missing password", HttpStatus.BAD_REQUEST)
         }
 
-        String[] categoryList = family.getAt("categoryList")
+        String[] categoryList = family["categoryList"]
         if (categoryList != null && categoryList.size() > 0) {
             categories = categoryList.collect({ it.capitalize() }).join(",")
         }
@@ -91,7 +83,7 @@ class UserService {
 
         // create user
         try {
-            int userId=taskDataJdbc.insertUser(userName, passwords, roles, nickName, result.familyId)
+            int userId = taskDataJdbc.insertUser(userName, passwords, roles, nickName, result.familyId)
             result.userId = userId
         } catch (Exception ex) {
             throw new TaskServerException(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR)
@@ -149,13 +141,12 @@ class UserService {
         return result
     }
 
-    def changeFamilyCategoryList(String familyId, String payload) {
+    def changeFamilyCategoryList(String familyId, Map payload) {
         def result = [
                 result: Constants.RESULT_FAIL,
         ]
 
-        def payloadJson = jsonSlurper.parseText(payload)
-        String[] categoryList = payloadJson.getAt("categoryList")
+        String[] categoryList = payload["categoryList"]
         if (categoryList == null || categoryList.size() == 0) {
             throw new TaskServerException("Missing categoryList", HttpStatus.BAD_REQUEST)
         }
@@ -197,28 +188,26 @@ class UserService {
 
     //---------------------user function-----------------------------------------//
 
-    def createUser(String userJsonStr, String token) {
+    def createUser(Map userJson, String token) {
         def result = [
                 result : Constants.RESULT_FAIL,
                 userId : "",
                 message: ""
         ]
 
-        def userJson = jsonSlurper.parseText(userJsonStr)
-
         String userName = userJson['userName'].toString()
         String rawPassword = userJson['password']
         String roles = UserRole.USER.value
         String nickName = Constants.DEFAULT_USER_NICKNAME
-        int familyId=userJson['familyId']
+        def familyId = userJson['familyId']
 
-        if (familyId == 0) {
+        if (familyId.class != Integer||familyId == 0) {
             throw new TaskServerException("Invalid Family Id", HttpStatus.BAD_REQUEST)
         }
 
-        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
-            throw new TaskServerException("FamilyId not match", HttpStatus.BAD_REQUEST)
-        }
+//        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
+//            throw new TaskServerException("FamilyId not match", HttpStatus.BAD_REQUEST)
+//        }
 
         if (userName == "" || userName == "null") {
             throw new TaskServerException("Missing userName", HttpStatus.BAD_REQUEST)
@@ -243,7 +232,7 @@ class UserService {
 
         try {
             taskDataJdbc.insertUser(userName, passwords, roles, nickName, familyId)
-        } catch (DuplicateKeyException e){
+        } catch (DuplicateKeyException e) {
             log.info(e.getMessage())
             throw new TaskServerException("User name exists", HttpStatus.BAD_REQUEST)
         }
@@ -264,9 +253,9 @@ class UserService {
         ]
         try {
             result.user = taskDataJdbc.getUserById(id)
-        }catch(EmptyResultDataAccessException ex){
+        } catch (EmptyResultDataAccessException ex) {
             throw new TaskServerException("User not found", HttpStatus.NOT_FOUND)
-        }catch(Exception e){
+        } catch (Exception e) {
             throw new TaskServerException("Failed to retrieve user", HttpStatus.INTERNAL_SERVER_ERROR)
         }
 

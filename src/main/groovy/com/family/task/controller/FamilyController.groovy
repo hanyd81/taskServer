@@ -18,8 +18,8 @@ class FamilyController {
     @RequestMapping(value = "family/createfamily",
             method = RequestMethod.POST,
             consumes = MediaType.APPLICATION_JSON_VALUE)
-    def generateFamily(@RequestBody String familyJsonStr) throws TaskServerException, Exception {
-        def result = userService.createFamily(familyJsonStr)
+    def generateFamily(@RequestBody Map familyJson) throws TaskServerException, Exception {
+        def result = userService.createFamily(familyJson)
         return result
     }
 
@@ -43,7 +43,7 @@ class FamilyController {
             method = RequestMethod.PUT,
             consumes = MediaType.APPLICATION_JSON_VALUE)
     def updateCategoryByFamily(@PathVariable("familyId") String familyId,
-                               @RequestBody String payload) throws TaskServerException, Exception{
+                               @RequestBody Map payload) throws TaskServerException, Exception{
         def result = userService.changeFamilyCategoryList(familyId,payload)
         return result
     }

@@ -19,68 +19,66 @@ class TaskService {
     @Autowired
     JsonSlurper jsonSlurper
     @Autowired
-    JsonBuilder jsonBuilder
-    @Autowired
     TaskDataJdbc taskDataJdbc
 
 
-    def createTask(String taskJsonStr, String token) {
+    def createTask(Map theTask, String token) {
         def result = [
                 result : Constants.RESULT_FAIL,
-                taskId : null,
                 message: ""
         ]
 
-        def theTask = jsonSlurper.parseText(taskJsonStr)
-
-        if (theTask["name"] == null || theTask["name"].length() == 0) {
-            result.message = "missing name "
-            return result
-        }
-
-        // set default values
-        String name = theTask["name"]
-        int points = theTask["points"]
-        int familyId = theTask["familyId"]
-        int effectDays = theTask["effectDays"]
-        String category = "OTHER"
-        String description = ""
-
-        Date date = new Date()
-        String createDate = date.format("yyyy-MM-dd")
-        String id = name.toUpperCase()[0] + date.format("MMddHHmmssSS") + familyId.toString()[-1]
+        // set values
+        def name = theTask["name"]
+        def points = theTask["points"]
+        def familyId = theTask["familyId"]
+        def effectDays = theTask["effectDays"]
 
         // validation
-        if (familyId == 0) {
-            result.message = "missing or invalid family id"
-            return result
+        if (name == null || name.toString().size() == 0) {
+            throw new TaskServerException("Missing taskName", HttpStatus.BAD_REQUEST)
         }
 
-        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
-            result.message = "invalid family id"
-            return result
+        if (familyId.class != Integer || familyId == 0) {
+            throw new TaskServerException("Missing or invalid family id", HttpStatus.BAD_REQUEST)
         }
+
+//        if (!ServiceHelper.isTokenFamilyIdMatch(token, familyId)) {
+//            throw new TaskServerException("FamilyId do not match", HttpStatus.BAD_REQUEST)
+//        }
 
         //set the values
+        String category = "OTHER"
+        String description = ""
+        Date date = new Date()
+        def createDate = theTask["createDate"]
+        String id = name.toString().toUpperCase()[0] + date.format("MMddHHmmssSS") + familyId.toString()[-1]
         theTask["taskid"] = id
         theTask["status"] = TaskStatus.OPEN.value
 
-        if (theTask["createDate"] != null) {
-            createDate = theTask["createDate"]
-            date = Date.parse("yyyy-MM-dd", createDate)
+        //todo check different date format
+        if (createDate != null ) {
+            try{
+                date = Date.parse("yyyy-MM-dd", createDate.toString())
+            }catch (Exception e){
+                log.info(e.message)
+                throw new TaskServerException("createDate is not valid", HttpStatus.BAD_REQUEST)
+            }
 
         } else {
+            createDate=date.format("yyyy-MM-dd")
             theTask["createDate"] = createDate
         }
 
-        if (effectDays == 0) {
+        if (effectDays == null || effectDays.class != Integer || effectDays <= 0) {
             effectDays = 1
         }
 
         String deadline = date.plus(effectDays).format("yyyy-MM-dd")
-        theTask["deadline"]=deadline
+        theTask["deadline"] = deadline
 
-        if (theTask.getAt("category") != null) {
+        //todo validate the category?
+        if (theTask["category"] != null) {
             category = theTask["category"]
         }
 
@@ -92,11 +90,11 @@ class TaskService {
         int queryResult = taskDataJdbc.insertTaskRecord(id, name, description, points, category, theTask["status"],
                 taskJson, familyId, createDate, deadline, theTask.getAt("assignee").toString())
 
-        if (queryResult > 0) {
-            result.result = Constants.RESULT_SUCCESS
-            result.taskId = id
+        if (queryResult == 0) {
+            throw new TaskServerException("Fail to create task", HttpStatus.INTERNAL_SERVER_ERROR)
         }
-
+        result.result = Constants.RESULT_SUCCESS
+        result.taskId = id
         return result
     }
 
