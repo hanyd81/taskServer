@@ -9,13 +9,14 @@ import org.springframework.web.bind.annotation.RequestMethod
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
+@RequestMapping(value = "auth")
 class JwtAuthenticationController {
 
     @Autowired
     AuthenticationService authenticationService
 
     @RequestMapping(value = "login", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
-    def userlogin(@RequestBody String loginJsonStr) {
-        def result = authenticationService.verifiyUser(loginJsonStr)
+    def userlogin(@RequestBody Map loginJsonStr) {
+        return authenticationService.verifiyUser(loginJsonStr)
     }
 }

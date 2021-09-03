@@ -67,9 +67,9 @@ class JwtTokenUtil {
     }
 
 
-    String generateJWT(String userName, int familyId, String roles) {
+    String generateJWT(String userName,int userId, int familyId, String roles) {
         Date now = new Date()
-        Date expiredate
+        Date expiredate = null
         use( TimeCategory ) {
             expiredate = now + mainConfig.tokenMinute
         }
@@ -79,6 +79,7 @@ class JwtTokenUtil {
                 .withExpiresAt(expiredate)
                 .withSubject(userName)
                 .withClaim("userName", userName)
+                .withClaim("userId", userId)
                 .withClaim("familyId", familyId)
                 .withClaim("roles", roles)
                 .sign(algorithmHS)

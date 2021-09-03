@@ -68,30 +68,40 @@ class UserService {
         String passwords = passwordEncoder.encode(rawPassword)
 
         //create family record
-        int queryResult
-        try {
-            queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
-        } catch (Exception ex) {
-            throw new TaskServerException(ex.getMessage(), HttpStatus.BAD_REQUEST)
-        }
-        if (queryResult > 0) {
-            result.familyId = queryResult
-            log.info("create new family ${familyName} with id ${queryResult}")
-        } else {
-            throw new TaskServerException("fail to create family", HttpStatus.INTERNAL_SERVER_ERROR)
-        }
+//        int queryResult
+//        try {
+//            queryResult = taskDataJdbc.insertFamily(familyName.replace("'", "''"), categories)
+//        } catch (Exception ex) {
+//            throw new TaskServerException(ex.getMessage(), HttpStatus.BAD_REQUEST)
+//        }
+//        if (queryResult > 0) {
+//            result.familyId = queryResult
+//            log.info("create new family ${familyName} with id ${queryResult}")
+//        } else {
+//            throw new TaskServerException("fail to create family", HttpStatus.INTERNAL_SERVER_ERROR)
+//        }
 
         // create user
-        try {
-            int userId = taskDataJdbc.insertUser(userName, passwords, roles, nickName, result.familyId)
-            result.userId = userId
-        } catch (Exception ex) {
+//        try {
+//            int userId = taskDataJdbc.insertUser(userName, passwords, roles, nickName, result.familyId)
+//            result.userId = userId
+//        } catch (Exception ex) {
+//            throw new TaskServerException(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR)
+//        }
+
+        //create user and family
+        try{
+            Map queryResult = taskDataJdbc.insertFamilyAndUser(familyName.replace("'", "''"), categories,
+                    userName, passwords, roles, nickName)
+            result.familyId = queryResult.familyId
+            result.userId = queryResult.userId
+        }catch (Exception ex) {
             throw new TaskServerException(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR)
         }
 
         result.result = Constants.RESULT_SUCCESS
         result.userName = userName
-        String jwt = jwtTokenUtil.generateJWT(userName, result.familyId, roles)
+        String jwt = jwtTokenUtil.generateJWT(userName,result.userId, result.familyId, roles)
         result.jwt = jwt
         log.info("create admin user ${userName}")
 

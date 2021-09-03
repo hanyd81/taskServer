@@ -1,64 +1,63 @@
 package com.family.task.authentication
 
 import com.family.task.constants.Constants
+import com.family.task.exception.TaskServerException
 import com.family.task.jdbc.TaskDataJdbc
 import groovy.json.JsonSlurper
+import groovy.util.logging.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 
+@Slf4j
 @Service
 class AuthenticationService {
     @Autowired
     TaskDataJdbc taskDataJdbc
     @Autowired
-    JsonSlurper jsonSlurper
-    @Autowired
     JwtTokenUtil jwtTokenUtil
     @Autowired
     BCryptPasswordEncoder passwordEncoder
 
-    def verifiyUser(String loginJsonStr) {
+    def verifiyUser(Map loginJsonStr) {
         def result = [
                 result : Constants.RESULT_FAIL,
-                message: "",
-                jwt    : null
+                message: ""
         ]
 
-        def loginJson = jsonSlurper.parseText(loginJsonStr)
-        String userId = loginJson.getAt("userId").toString()
-        String password = loginJson.getAt("password").toString()
+        String userName = loginJsonStr["userName"]
+        String password = loginJsonStr.getAt("password").toString()
 
-        if (userId == null || password == null || password == "null") {
-            result.message = "Missing userId or password"
-            return result
+        if (userName == null || password == null || userName == "null"|| password == "null") {
+            throw new TaskServerException("Missing password or userName", HttpStatus.BAD_REQUEST)
         }
 
-        def userInfo = taskDataJdbc.getUserPassWordById(userId)
-        if (userInfo == null || userInfo.size() == 0) {
-            result.message = "invalid user name"
-            return result
+        def userInfo=null
+        try{
+            userInfo = taskDataJdbc.getUserPassWordByName(userName)[0]
+            if(userInfo==null){
+                throw new TaskServerException("Invalid userName", HttpStatus.BAD_REQUEST)
+            }
+        }catch (TaskServerException te){
+            throw te
+        }catch (Exception e){
+            log.error(e.message)
+            throw new TaskServerException("Invalid userName", HttpStatus.BAD_REQUEST)
         }
-        String password2 = userInfo[0].getAt("passwords").toString()
-        String roles = userInfo[0].getAt("roles").toString()
-        int familyId
-
-        try {
-            familyId = userInfo[0].getAt("familyId").intValue()
-        } catch (Exception e) {
-            System.out.println(e.message)
-            result.message = "Invalid familyId"
-            return result
-        }
+        String password2 = userInfo["passwords"]
+        String roles = userInfo["roles"]
+        int userId=userInfo["userId"]
+        int familyId=userInfo["familyId"]
 
         if (passwordEncoder.matches(password, password2)) {
-            String jwt = jwtTokenUtil.generateJWT(userId, familyId, roles)
+            String jwt = jwtTokenUtil.generateJWT(userName, userId, familyId, roles)
             result.jwt = jwt
             result.result = Constants.RESULT_SUCCESS
             return result
+        }else{
+            throw new TaskServerException("password not match", HttpStatus.BAD_REQUEST)
         }
-        result.message = "Invalid password"
-        return result
     }
 }

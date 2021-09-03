@@ -229,21 +229,49 @@ class TaskDataJdbc {
         return jdbcTemplate.queryForObject(sql, String.class)
     }
 
+    @Transactional
     def updateCategoriesByFamilyId(String familyId, String category) {
         String sql = "UPDATE " + FAMILY_TABLE + " SET categories='" + category + "' WHERE familyid='" + familyId + "'"
 
         return jdbcTemplate.update(sql)
     }
 
+    @Transactional
     def deleteFamilyByFamilyId(String familyId) {
         String sql = "DELETE FROM " + FAMILY_TABLE + " WHERE familyid='" + familyId + "'"
 
         return jdbcTemplate.update(sql)
     }
 
-    //-------------user table ---------------------------------------/
+    Map insertFamilyAndUser(String familyName, String category, String userName, String passwords, String roles, String nickname) {
+        int familyId = 0;
+        int userId = 0
+        jdbcTemplate.execute("BEGIN")
+        try {
+            String insertFamilySql = "INSERT INTO " + FAMILY_TABLE + "(familyname, categories) VALUES ( '" +
+                    familyName + "','" + category + "') RETURNING familyId"
+            familyId = jdbcTemplate.queryForObject(insertFamilySql, Integer.class)
+            String insertUsersql = "INSERT INTO " + USER_TABLE + "(username,passwords,roles,nickname,familyid) VALUES ( '" +
+                    userName + "','" +
+                    passwords + "','" +
+                    roles + "','" +
+                    nickname + "'," +
+                    familyId +
+                    ")  RETURNING id"
 
-    def insertUser(String userName, String passwords, String roles, String nickname, int familyId) {
+            userId = jdbcTemplate.queryForObject(insertUsersql, Integer.class)
+        } catch (Exception e) {
+            jdbcTemplate.execute("ROLLBACK")
+            throw e
+        }
+        jdbcTemplate.execute("COMMIT")
+        return ["familyId":familyId,
+                "userId":userId,
+        ]
+    }
+    //-------------user table ---------------------------------------/
+    @Transactional
+    int insertUser(String userName, String passwords, String roles, String nickname, int familyId) {
         String sql = "INSERT INTO " + USER_TABLE + "(username,passwords,roles,nickname,familyid) VALUES ( '" +
                 userName + "','" +
                 passwords + "','" +
@@ -269,12 +297,23 @@ class TaskDataJdbc {
         return jdbcTemplate.queryForMap(sql)
     }
 
-    def getUserPassWordById(String id) {
+    def getUserById(int id) {
         String sql = "SELECT " +
+                "username as \"userName\", " +
+                "roles, " +
+                "familyid as \"familyId\" " +
+                " FROM " + USER_TABLE + " WHERE id= ${id}"
+
+        return jdbcTemplate.queryForList(sql)
+    }
+
+    def getUserPassWordByName(String userName) {
+        String sql = "SELECT " +
+                "id as \"userId\"," +
                 "passwords, " +
                 "roles, " +
                 "familyid as \"familyId\" " +
-                " FROM " + USER_TABLE + " WHERE id='" + id + "'"
+                " FROM " + USER_TABLE + " WHERE username='" + userName + "'"
 
         return jdbcTemplate.queryForList(sql)
     }
@@ -292,6 +331,7 @@ class TaskDataJdbc {
         return jdbcTemplate.queryForList(sql)
     }
 
+    @Transactional
     def addOrSubtractPointsByUserId(String id, String points, Boolean isAdd = true) {
         String op = isAdd ? "+" : "-"
         String sql = "UPDATE " + USER_TABLE + " SET points=points" + op +
